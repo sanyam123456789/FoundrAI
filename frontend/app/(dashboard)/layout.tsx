@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
+import { useUser, SignOutButton, UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -17,7 +18,6 @@ import {
   Sun,
   Moon,
   Bell,
-  User,
   X
 } from "lucide-react";
 
@@ -28,6 +28,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { user } = useUser();
   
   // State for sidebar collapse (desktop)
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -180,18 +181,41 @@ export default function DashboardLayout({
         </div>
 
         {/* BOTTOM USER PANEL */}
-        <div className="p-4 border-t border-border bg-muted/40 flex items-center justify-between">
+        <div className="p-4 border-t border-border bg-muted/40 flex flex-col gap-3">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
-              JD
-            </div>
+            {user?.imageUrl ? (
+              <img
+                src={user.imageUrl}
+                alt="User Profile"
+                width={36}
+                height={36}
+                className="h-9 w-9 shrink-0 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
+                {user?.firstName?.charAt(0) || "JD"}
+              </div>
+            )}
             {(!isCollapsed || isMobileOpen) && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-xs font-semibold truncate text-foreground">John Doe</span>
-                <span className="text-[10px] text-muted-foreground truncate">founder@example.com</span>
+                <span className="text-xs font-semibold truncate text-foreground">
+                  {user?.fullName || "John Doe"}
+                </span>
+                <span className="text-[10px] text-muted-foreground truncate">
+                  {user?.primaryEmailAddress?.emailAddress || "founder@example.com"}
+                </span>
               </div>
             )}
           </div>
+          {(!isCollapsed || isMobileOpen) && (
+            <div className="border-t border-border/30 pt-2 flex items-center justify-between">
+              <SignOutButton signOutOptions={{ redirectUrl: "/" }}>
+                <button className="text-xs text-muted-foreground hover:text-destructive hover:font-semibold transition-colors w-full text-left">
+                  Log out
+                </button>
+              </SignOutButton>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -258,10 +282,8 @@ export default function DashboardLayout({
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
             </button>
 
-            {/* User Profile Avatar Placeholder */}
-            <div className="h-8 w-8 rounded-full bg-primary/20 hover:bg-primary/30 text-primary flex items-center justify-center font-bold text-sm cursor-pointer select-none">
-              JD
-            </div>
+            {/* User Profile Avatar / Menu / Sign Out */}
+            <UserButton afterSignOutUrl="/" />
           </div>
         </header>
 

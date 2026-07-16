@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTheme } from "@/components/ThemeProvider";
+import { useUser } from "@clerk/nextjs";
 import { 
   User, 
   Settings as SettingsIcon, 
@@ -16,13 +17,25 @@ import {
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
+  const { user } = useUser();
 
-  // Mock form state
+  // Form state
   const [profile, setProfile] = useState({
-    name: "John Doe",
-    email: "founder@example.com",
-    role: "CEO & Co-founder"
+    name: "",
+    email: "",
+    role: "Co-founder"
   });
+
+  // Sync state once Clerk user loads
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        name: user.fullName || "",
+        email: user.primaryEmailAddress?.emailAddress || "",
+        role: "Co-founder"
+      });
+    }
+  }, [user]);
 
   const [integrations, setIntegrations] = useState({
     gmail: true,
@@ -106,6 +119,7 @@ export default function SettingsPage() {
                   value={profile.email}
                   onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                   className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                  disabled
                 />
               </div>
               <button
@@ -115,6 +129,35 @@ export default function SettingsPage() {
                 <Save size={14} /> Save Changes
               </button>
             </form>
+
+            {/* CLERK USER METADATA */}
+            <div className="rounded-xl border border-border/80 bg-muted/40 p-4 space-y-3 text-xs">
+              <h4 className="font-semibold text-foreground">Clerk Account Metadata</h4>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Clerk User ID</span>
+                  <span className="font-mono break-all text-foreground">{user?.id || "Loading..."}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Account Created</span>
+                  <span className="text-foreground">
+                    {user?.createdAt ? new Date(user.createdAt).toLocaleString() : "Loading..."}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Last Signed In</span>
+                  <span className="text-foreground">
+                    {user?.lastSignInAt ? new Date(user.lastSignInAt).toLocaleString() : "Loading..."}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Identity Provider</span>
+                  <span className="capitalize text-foreground">
+                    {user?.externalAccounts?.[0]?.provider || "Email/Password"}
+                  </span>
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* APPEARANCE SECTION */}
