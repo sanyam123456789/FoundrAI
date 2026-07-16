@@ -1,4 +1,7 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { fetchRoot, fetchHealth, RootResponse, HealthResponse } from "@/lib/api";
 import {
   Mail,
   Calendar,
@@ -8,10 +11,38 @@ import {
   Activity,
   ArrowUpRight,
   Clock,
-  Circle
+  Circle,
+  Server,
+  AlertTriangle,
+  RefreshCw
 } from "lucide-react";
 
 export default function DashboardPage() {
+  // State for Backend API Data
+  const [rootInfo, setRootInfo] = useState<RootResponse | null>(null);
+  const [healthInfo, setHealthInfo] = useState<HealthResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // API Retrieval Action
+  const loadBackendData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [root, health] = await Promise.all([fetchRoot(), fetchHealth()]);
+      setRootInfo(root);
+      setHealthInfo(health);
+    } catch (err: any) {
+      setError(err?.message || "Could not reach backend API server");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBackendData();
+  }, []);
+
   const cards = [
     {
       id: "emails",
@@ -101,6 +132,83 @@ export default function DashboardPage() {
           <Clock size={12} />
           <span>Last updated: Local Sync Active</span>
         </div>
+      </div>
+
+      {/* BACKEND INTEGRATION STATUS WIDGET */}
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-border/40 pb-3">
+          <div className="flex items-center gap-2 font-bold text-sm">
+            <Server size={16} className="text-primary" />
+            <span>Backend Engine Status</span>
+          </div>
+          <button 
+            onClick={loadBackendData}
+            disabled={loading}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 hover:bg-muted px-2.5 py-1 rounded-lg border border-border/45 transition-all disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+            <span>Refresh</span>
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-4 text-sm text-muted-foreground gap-2">
+            <RefreshCw size={16} className="animate-spin text-primary" />
+            <span>Retrieving backend metrics...</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-destructive/20 bg-destructive/5 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-destructive/10 text-destructive">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="text-xs">
+                <p className="font-semibold text-foreground">Backend Connection Offline</p>
+                <p className="text-muted-foreground mt-0.5">{error}. Check if Uvicorn backend is running.</p>
+              </div>
+            </div>
+            <button 
+              onClick={loadBackendData}
+              className="text-xs font-semibold bg-primary hover:bg-primary/95 text-primary-foreground px-3.5 py-2 rounded-lg shadow-sm transition-all shrink-0"
+            >
+              Retry Connection
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Backend Name */}
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground">API Server Name</span>
+              <p className="text-sm font-semibold truncate text-foreground">{rootInfo?.name || "FoundrAI Backend"}</p>
+            </div>
+            
+            {/* Backend Version */}
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground">API Version</span>
+              <p className="text-sm font-semibold truncate text-foreground">{rootInfo?.version || "1.0.0"}</p>
+            </div>
+
+            {/* API Status */}
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground">Server Status</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`h-2 w-2 rounded-full ${healthInfo?.status === "healthy" ? "bg-green-500" : "bg-red-500"}`} />
+                <span className="text-sm font-semibold capitalize text-foreground">{healthInfo?.status || "unhealthy"}</span>
+              </div>
+            </div>
+
+            {/* Database Status */}
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground">Database Connectivity</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`h-2 w-2 rounded-full ${healthInfo?.database === "disconnected" ? "bg-red-500" : "bg-green-500"}`} />
+                <span className="text-sm font-semibold capitalize text-foreground">
+                  {healthInfo?.database === "disconnected" ? "disconnected" : "connected"}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* CORE STAT CARDS GRID */}
