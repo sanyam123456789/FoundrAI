@@ -1,0 +1,20 @@
+version: '3.8'
+
+# Production Docker Compose Overrides
+services:
+  postgres:
+    volumes:
+      - /var/lib/foundrai/postgres:/var/lib/postgresql/data
+    # Avoid exposing database ports directly in production
+    ports: [] 
+
+  backend:
+    environment:
+      - DEBUG=false
+      - ENV_NAME=production
+    command: gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
+    volumes: [] # Disable hot reloading mounts in production
+
+  frontend:
+    command: npm run start
+    volumes: [] # Disable local mount nodes in production

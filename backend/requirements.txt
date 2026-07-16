@@ -1,0 +1,12 @@
+# FastAPI framework
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+
+# Database integration
+sqlalchemy>=2.0.28
+alembic>=1.13.1
+psycopg2-binary>=2.9.9
+
+# Environment and configuration
+pydantic-settings>=2.2.1
+python-dotenv>=1.0.1

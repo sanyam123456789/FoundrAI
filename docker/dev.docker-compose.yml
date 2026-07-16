@@ -1,0 +1,12 @@
+version: '3.8'
+
+# Development Docker Compose Overrides
+services:
+  backend:
+    environment:
+      - DEBUG=true
+      - ENV_NAME=development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    command: npm run dev
