@@ -28,9 +28,10 @@ async def chat_endpoint(
     Maintains session memory context by routing request.session_id.
     """
     try:
-        response_text = await ai_service.generate_response(
+        response_text, used_tools = await ai_service.generate_response(
             message=request.message,
-            session_id=request.session_id
+            session_id=request.session_id,
+            user_id=request.user_id
         )
         
         # Calculate estimated total tokens in active session memory
@@ -43,7 +44,8 @@ async def chat_endpoint(
                 
         return ChatResponse(
             response=response_text,
-            estimated_tokens=estimated_tokens
+            estimated_tokens=estimated_tokens,
+            used_tools=used_tools
         )
 
     except ValueError as e:

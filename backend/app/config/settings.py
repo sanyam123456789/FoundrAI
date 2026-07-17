@@ -22,6 +22,10 @@ class Settings(BaseSettings):
         "software architect, product advisor, and business strategy assistant. "
         "Provide professional, strategic, and technically sound guidance."
     )
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/integrations/google/callback"
+    ENCRYPTION_KEY: str | None = None
 
     # PostgreSQL Database Settings
     POSTGRES_USER: str = "postgres"

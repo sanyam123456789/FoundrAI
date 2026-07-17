@@ -37,9 +37,16 @@ app.add_middleware(LoggingMiddleware)
 # Register Exception Handlers
 register_exception_handlers(app)
 
+# Auto-create database tables
+from app.database import Base, engine
+from app.models.credential import GoogleCredential
+Base.metadata.create_all(bind=engine)
+
 # Include API Routers
 from app.api.v1.chat import router as chat_router
+from app.api.v1.integrations import router as integrations_router
 app.include_router(chat_router, prefix="/api")
+app.include_router(integrations_router, prefix="/api")
 
 
 @app.get("/", status_code=status.HTTP_200_OK)

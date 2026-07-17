@@ -3,15 +3,18 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, Sparkles, BrainCircuit, Plus } from "lucide-react";
 import { sendChatMessage } from "@/services/chat";
+import { useUser } from "@clerk/nextjs";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  usedTools?: string[];
 }
 
 export default function ChatPage() {
+  const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -84,11 +87,12 @@ export default function ChatPage() {
     setIsTyping(true);
 
     try {
-      const responseText = await sendChatMessage(userMessageContent, sessionId);
+      const result = await sendChatMessage(userMessageContent, sessionId, user?.id);
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: responseText,
+        content: result.response,
+        usedTools: result.usedTools,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, assistantMessage]);
@@ -218,6 +222,16 @@ export default function ChatPage() {
                     }
                   `}
                 >
+                  {isAss && message.usedTools && message.usedTools.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2 items-center text-[10px] text-primary/80 font-semibold select-none border-b border-border/40 pb-1.5">
+                      <span>Tool Used:</span>
+                      {message.usedTools.map((t, idx) => (
+                        <span key={idx} className="bg-primary/10 px-1.5 py-0.5 rounded text-primary">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <p>{message.content}</p>
                   <span
                     className={`block text-[9px] mt-1.5 text-right

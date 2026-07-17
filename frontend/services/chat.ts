@@ -5,13 +5,18 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export async function sendChatMessage(message: string, sessionId?: string): Promise<string> {
+export interface ChatResult {
+  response: string;
+  usedTools?: string[];
+}
+
+export async function sendChatMessage(message: string, sessionId?: string, userId?: string): Promise<ChatResult> {
   const response = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, user_id: userId }),
   });
 
   if (!response.ok) {
@@ -30,5 +35,9 @@ export async function sendChatMessage(message: string, sessionId?: string): Prom
   }
 
   const data = await response.json();
-  return data.response;
+  return {
+    response: data.response,
+    usedTools: data.used_tools
+  };
 }
+

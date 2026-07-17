@@ -5,7 +5,6 @@ import { useTheme } from "@/components/ThemeProvider";
 import { useUser } from "@clerk/nextjs";
 import { 
   User, 
-  Settings as SettingsIcon, 
   Palette, 
   Link2, 
   Trash2, 
@@ -26,6 +25,15 @@ export default function SettingsPage() {
     role: "Co-founder"
   });
 
+  // Google Integration Status State
+  const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; email: string | null }>({
+    connected: false,
+    email: null
+  });
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   // Sync state once Clerk user loads
   useEffect(() => {
     if (user) {
@@ -37,6 +45,87 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // Fetch status of Google connection
+  const fetchGoogleStatus = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`${API_URL}/api/integrations/google/status?user_id=${user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGoogleStatus(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch Google integration status:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchGoogleStatus();
+    }
+  }, [user]);
+
+  // Handle URL query parameters (e.g. callback alerts)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("connected") === "true") {
+        setSuccessMsg("Gmail account linked successfully!");
+        // Clean params
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (params.get("error")) {
+        setErrorMsg(params.get("error"));
+        // Clean params
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  const handleConnect = async () => {
+    if (!user?.id) return;
+    setIsProcessing(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${API_URL}/api/integrations/google/auth-url?user_id=${user.id}`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Failed to generate connection URL.");
+      }
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e: any) {
+      setErrorMsg(e.message || "Failed to initiate Google connection.");
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!user?.id) return;
+    if (!confirm("Are you sure you want to disconnect Gmail? The assistant will lose access to email operations.")) return;
+    
+    setIsProcessing(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${API_URL}/api/integrations/google/disconnect?user_id=${user.id}`, {
+        method: "POST"
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Failed to disconnect account.");
+      }
+      setGoogleStatus({ connected: false, email: null });
+      setSuccessMsg("Gmail account disconnected successfully.");
+    } catch (e: any) {
+      setErrorMsg(e.message || "Failed to disconnect Google connection.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const [integrations, setIntegrations] = useState({
     gmail: true,
     calendar: false,
@@ -45,7 +134,7 @@ export default function SettingsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Settings saved successfully! (Frontend state update placeholder)");
+    alert("Settings saved successfully! (Profile state update placeholder)");
   };
 
   return (
@@ -70,9 +159,13 @@ export default function SettingsPage() {
               <Palette size={16} />
               <span>Appearance</span>
             </a>
+            <a href="#google-integrations" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all">
+              <Mail size={16} />
+              <span>Google Integrations</span>
+            </a>
             <a href="#integrations" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all">
               <Link2 size={16} />
-              <span>Integrations</span>
+              <span>Mock Sandbox</span>
             </a>
             <a href="#danger" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted/50 text-destructive hover:text-destructive/95 transition-all">
               <Trash2 size={16} />
@@ -84,6 +177,24 @@ export default function SettingsPage() {
         {/* RIGHT CONTENT PANEL */}
         <div className="md:col-span-2 space-y-8">
           
+          {/* ALERTS SECTION */}
+          {(successMsg || errorMsg) && (
+            <div className="space-y-3">
+              {successMsg && (
+                <div className="p-3 bg-green-500/10 border border-green-500/20 text-green-500 rounded-xl text-xs flex justify-between items-center animate-fadeIn">
+                  <span>{successMsg}</span>
+                  <button onClick={() => setSuccessMsg(null)} className="hover:text-green-400 font-semibold">Dismiss</button>
+                </div>
+              )}
+              {errorMsg && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-xs flex justify-between items-center animate-fadeIn">
+                  <span>{errorMsg}</span>
+                  <button onClick={() => setErrorMsg(null)} className="hover:text-red-400 font-semibold">Dismiss</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* PROFILE SECTION */}
           <section id="profile" className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-2 border-b border-border/40 pb-4">
@@ -183,38 +294,59 @@ export default function SettingsPage() {
             </div>
           </section>
 
-          {/* INTEGRATIONS SECTION */}
+          {/* GOOGLE INTEGRATIONS */}
+          <section id="google-integrations" className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6 scroll-mt-24">
+            <div className="flex items-center gap-2 border-b border-border/40 pb-4">
+              <Mail size={18} className="text-primary" />
+              <h2 className="font-bold text-lg">Google Integrations</h2>
+            </div>
+
+            {googleStatus.connected ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between rounded-xl border border-green-500/25 bg-green-500/5 p-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-green-500 font-bold text-sm">✅ Gmail Connected</span>
+                    <span className="text-xs text-muted-foreground">Linked to: {googleStatus.email}</span>
+                  </div>
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={isProcessing}
+                    className="rounded-lg bg-destructive hover:bg-destructive/90 px-3.5 py-2 text-xs font-semibold text-destructive-foreground transition-all shadow-sm disabled:opacity-50"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 animate-fadeIn">
+                <p className="text-xs text-muted-foreground">
+                  Connect your Gmail account using secure Google OAuth 2.0 authorization.
+                  Once linked, FoundrAI will be able to retrieve unread statistics, list recent subject lines, and generate summaries inside your chat playground.
+                </p>
+                <button
+                  onClick={handleConnect}
+                  disabled={isProcessing}
+                  className="rounded-lg bg-primary hover:bg-primary/95 px-4 py-2.5 text-xs font-semibold text-primary-foreground transition-all shadow-sm disabled:opacity-50"
+                >
+                  {isProcessing ? "Redirecting..." : "Connect Gmail"}
+                </button>
+              </div>
+            )}
+          </section>
+
+          {/* MOCK SANDBOX INTEGRATIONS SECTION */}
           <section id="integrations" className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-2 border-b border-border/40 pb-4">
               <Link2 size={18} className="text-primary" />
-              <h2 className="font-bold text-lg">Connected Integrations</h2>
+              <h2 className="font-bold text-lg">Connected Integrations (Developer Sandbox)</h2>
             </div>
 
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Manage OAuth and sandbox states for developer endpoints (Phase 3 placeholders).
+                Manage sandbox test flags for external pipelines. (UI only placeholders).
               </p>
               
               <div className="space-y-3">
-                {/* GMAIL */}
-                <div className="flex items-center justify-between rounded-xl border border-border bg-muted/20 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-red-500/10 text-red-500">
-                      <Mail size={18} />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold">Gmail Integration</h4>
-                      <span className="text-[10px] text-muted-foreground">Read and draft alerts</span>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={integrations.gmail}
-                    onChange={(e) => setIntegrations({ ...integrations, gmail: e.target.checked })}
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                  />
-                </div>
-
                 {/* CALENDAR */}
                 <div className="flex items-center justify-between rounded-xl border border-border bg-muted/20 p-4">
                   <div className="flex items-center gap-3">
@@ -288,3 +420,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

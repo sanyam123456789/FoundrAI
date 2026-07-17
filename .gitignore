@@ -57,3 +57,12 @@ Thumbs.db
 # Docker
 *.log
 .docker
+# Google OAuth Credentials
+backend/secrets/google_credentials.json
+google_credentials.json
+credentials.json
+
+# Environment files
+.env
+backend/.env
+.env.*

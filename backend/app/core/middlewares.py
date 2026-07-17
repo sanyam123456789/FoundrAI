@@ -18,13 +18,17 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        client_ip = request.client.host if request.client else "unknown"
-        method = request.method
-        path = request.url.path
-        query_params = str(request.query_params)
+        # Sanitize query parameters to avoid logging sensitive credentials
+        sanitized_params = []
+        for key, value in request.query_params.items():
+            if key.lower() in ("code", "state", "access_token", "refresh_token", "client_secret"):
+                sanitized_params.append(f"{key}=[REDACTED]")
+            else:
+                sanitized_params.append(f"{key}={value}")
+        query_params_str = "&".join(sanitized_params)
 
         logger.info(
-            f"--> Request: {method} {path} {f'params={query_params}' if query_params else ''} | Client: {client_ip}"
+            f"--> Request: {method} {path} {f'params={query_params_str}' if query_params_str else ''} | Client: {client_ip}"
         )
 
         start_time = time.perf_counter()
