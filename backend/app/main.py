@@ -37,6 +37,10 @@ app.add_middleware(LoggingMiddleware)
 # Register Exception Handlers
 register_exception_handlers(app)
 
+# Include API Routers
+from app.api.v1.chat import router as chat_router
+app.include_router(chat_router, prefix="/api")
+
 
 @app.get("/", status_code=status.HTTP_200_OK)
 async def root_endpoint():

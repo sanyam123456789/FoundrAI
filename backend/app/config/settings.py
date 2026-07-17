@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     ENV_NAME: str = "development"
     DEBUG: bool = True
+    GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
     # PostgreSQL Database Settings
     POSTGRES_USER: str = "postgres"
@@ -51,3 +53,26 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Startup diagnostics debugging logs
+import os
+import logging
+logger = logging.getLogger("app.config.settings")
+
+env_file = settings.model_config.get("env_file", ".env")
+env_path = os.path.abspath(env_file)
+key_preview = (settings.GROQ_API_KEY[:10] + "...") if settings.GROQ_API_KEY else "<Not Set>"
+
+print("=== FOUNDRAI STARTUP DIAGNOSTICS ===")
+print(f"Loaded environment file path: {env_path}")
+print(f"Environment file exists: {os.path.exists(env_path)}")
+print(f"Loaded GROQ_API_KEY: {key_preview}")
+print(f"Loaded GROQ_MODEL: {settings.GROQ_MODEL}")
+print("====================================")
+
+logger.info("=== FOUNDRAI STARTUP DIAGNOSTICS ===")
+logger.info(f"Loaded environment file path: {env_path}")
+logger.info(f"Environment file exists: {os.path.exists(env_path)}")
+logger.info(f"Loaded GROQ_API_KEY: {key_preview}")
+logger.info(f"Loaded GROQ_MODEL: {settings.GROQ_MODEL}")
+logger.info("====================================")

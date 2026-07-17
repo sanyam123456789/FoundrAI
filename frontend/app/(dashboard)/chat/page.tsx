@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Sparkles, User, BrainCircuit, ArrowDown } from "lucide-react";
+import { Send, Sparkles, BrainCircuit } from "lucide-react";
+import { sendChatMessage } from "@/services/chat";
 
 interface Message {
   id: string;
@@ -15,25 +16,14 @@ export default function ChatPage() {
     {
       id: "1",
       role: "assistant",
-      content: "Hello! I am your FoundrAI Assistant. I can help sync tasks, inspect GitHub PRs, check Gmail alerts, and compile schedule briefings. (Note: External integrations are placeholders in this frontend demo phase).",
+      content: "Hello! I am your FoundrAI Assistant. I can help sync tasks, inspect GitHub PRs, check Gmail alerts, and compile schedule briefings.",
       timestamp: "10:30 AM"
-    },
-    {
-      id: "2",
-      role: "user",
-      content: "Are there any urgent blockers on my GitHub repositories?",
-      timestamp: "10:31 AM"
-    },
-    {
-      id: "3",
-      role: "assistant",
-      content: "Based on the mock repository activity: \n\n* **PR #12** (`feat: mcp-client-sse-transport-layer`) has a green build and is awaiting review.\n* **No critical bugs** or failing production workflows detected. \n\nWould you like me to prepare a pull request review digest?",
-      timestamp: "10:31 AM"
     }
   ]);
 
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom of thread
@@ -45,14 +35,17 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || isTyping) return;
+
+    setError(null);
+    const userMessageContent = inputValue.trim();
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: inputValue,
+      content: userMessageContent,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -60,17 +53,41 @@ export default function ChatPage() {
     setInputValue("");
     setIsTyping(true);
 
-    // Simulate typing delay and mock assistant reply
-    setTimeout(() => {
-      setIsTyping(false);
+    try {
+      const responseText = await sendChatMessage(userMessageContent);
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "This is a static sandbox reply. Real AI replies and workspace integrations will be connected in future backend execution phases. Everything is running correctly!",
+        content: responseText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    }, 1500);
+    } catch (err: any) {
+      console.error("Chat API error:", err);
+      let friendlyError = "Something went wrong. Please try again.";
+      if (err.message) {
+        if (err.message.includes("Failed to fetch")) {
+          friendlyError = "The backend server is unreachable. Please verify that the backend is running.";
+        } else {
+          friendlyError = err.message;
+        }
+      }
+      setError(friendlyError);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (inputValue.trim() && !isTyping) {
+        const mockEvent = {
+          preventDefault: () => {}
+        } as React.FormEvent;
+        handleSend(mockEvent);
+      }
+    }
   };
 
   return (
@@ -84,7 +101,7 @@ export default function ChatPage() {
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <BrainCircuit size={14} className="text-primary" />
-          <span>Demo LLM Pipeline</span>
+          <span>Groq LLM Pipeline</span>
         </div>
       </div>
 
@@ -153,30 +170,38 @@ export default function ChatPage() {
 
       {/* INPUT FORM CONTAINER */}
       <div className="p-4 border-t border-border bg-muted/20">
+        {error && (
+          <div className="max-w-3xl mx-auto mb-3 p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-xs flex items-center justify-between animate-fadeIn">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="hover:text-red-400 font-bold ml-2">Dismiss</button>
+          </div>
+        )}
         <form onSubmit={handleSend} className="max-w-3xl mx-auto flex items-center gap-3">
           <div className="relative flex-1">
-            <input
-              type="text"
+            <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Query Gmail alerts, sync schedules, check GitHub status..."
-              className="w-full bg-background border border-border rounded-xl px-4 py-3.5 pr-12 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-inner"
+              className="w-full bg-background border border-border rounded-xl pl-4 pr-12 py-3.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-inner resize-none min-h-[46px] max-h-[160px] overflow-y-auto align-middle"
               disabled={isTyping}
+              rows={1}
             />
             <button
               type="submit"
               disabled={isTyping || !inputValue.trim()}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 disabled:bg-muted/40 disabled:text-muted-foreground transition-all shadow-sm"
+              className="absolute right-2.5 bottom-2.5 p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 disabled:bg-muted/40 disabled:text-muted-foreground transition-all shadow-sm"
             >
               <Send size={16} />
             </button>
           </div>
         </form>
         <p className="text-center text-[10px] text-muted-foreground/60 mt-2">
-          This playground functions as a client state sandbox without network API interactions.
+          This playground is connected directly to Groq's API.
         </p>
       </div>
 
     </div>
   );
 }
+
