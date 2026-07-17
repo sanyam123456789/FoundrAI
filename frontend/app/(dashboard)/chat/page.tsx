@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Sparkles, BrainCircuit } from "lucide-react";
+import { Send, Sparkles, BrainCircuit, Plus } from "lucide-react";
 import { sendChatMessage } from "@/services/chat";
 
 interface Message {
@@ -12,19 +12,49 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "Hello! I am your FoundrAI Assistant. I can help sync tasks, inspect GitHub PRs, check Gmail alerts, and compile schedule briefings.",
-      timestamp: "10:30 AM"
-    }
-  ]);
-
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string>("");
+  const [isResetting, setIsResetting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load message history and session ID from sessionStorage on client-side mount
+  useEffect(() => {
+    // Session ID setup
+    let sid = sessionStorage.getItem("foundrai_session_id");
+    if (!sid) {
+      sid = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      sessionStorage.setItem("foundrai_session_id", sid);
+    }
+    setSessionId(sid);
+
+    // Messages history setup
+    const saved = sessionStorage.getItem("foundrai_messages");
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse cached chat history:", e);
+      }
+    } else {
+      const defaultGreeting: Message = {
+        id: "1",
+        role: "assistant",
+        content: "Hello! I am your FoundrAI Assistant. I can help sync tasks, inspect GitHub PRs, check Gmail alerts, and compile schedule briefings.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages([defaultGreeting]);
+    }
+  }, []);
+
+  // Update sessionStorage whenever messages are modified
+  useEffect(() => {
+    if (messages.length > 0) {
+      sessionStorage.setItem("foundrai_messages", JSON.stringify(messages));
+    }
+  }, [messages]);
 
   // Auto-scroll to bottom of thread
   const scrollToBottom = () => {
@@ -37,7 +67,7 @@ export default function ChatPage() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isTyping) return;
+    if (!inputValue.trim() || isTyping || isResetting) return;
 
     setError(null);
     const userMessageContent = inputValue.trim();
@@ -54,7 +84,7 @@ export default function ChatPage() {
     setIsTyping(true);
 
     try {
-      const responseText = await sendChatMessage(userMessageContent);
+      const responseText = await sendChatMessage(userMessageContent, sessionId);
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
@@ -78,10 +108,57 @@ export default function ChatPage() {
     }
   };
 
+  const handleNewChat = async () => {
+    if (isTyping || isResetting) return;
+    
+    if (confirm("Are you sure you want to start a new chat? This will clear current conversation context.")) {
+      setError(null);
+      setIsResetting(true);
+      
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      
+      try {
+        if (sessionId) {
+          console.info(`Requesting session reset for ID: ${sessionId}`);
+          const res = await fetch(`${API_URL}/api/chat/reset`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ session_id: sessionId }),
+          });
+          
+          if (!res.ok) {
+             console.warn("Reset endpoint returned non-ok status");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to reset session history on backend:", err);
+      } finally {
+        setIsResetting(false);
+      }
+
+      // Generate a brand new session ID to clear backend memory mapping key
+      const newSid = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      sessionStorage.setItem("foundrai_session_id", newSid);
+      setSessionId(newSid);
+
+      // Reset local states
+      const defaultGreeting: Message = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: "Memory reset completed. How can I help you co-found your next venture?",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages([defaultGreeting]);
+      sessionStorage.setItem("foundrai_messages", JSON.stringify([defaultGreeting]));
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (inputValue.trim() && !isTyping) {
+      if (inputValue.trim() && !isTyping && !isResetting) {
         const mockEvent = {
           preventDefault: () => {}
         } as React.FormEvent;
@@ -99,9 +176,19 @@ export default function ChatPage() {
           <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
           <span className="text-sm font-semibold">FoundrAI Assistant Playground</span>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <BrainCircuit size={14} className="text-primary" />
-          <span>Groq LLM Pipeline</span>
+        <div className="flex items-center gap-4 text-xs">
+          <button
+            onClick={handleNewChat}
+            disabled={isResetting || isTyping}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:pointer-events-none bg-background text-foreground"
+          >
+            <Plus size={14} className="text-primary" />
+            <span>New Chat</span>
+          </button>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <BrainCircuit size={14} className="text-primary" />
+            <span>Groq LLM Pipeline</span>
+          </div>
         </div>
       </div>
 
@@ -184,12 +271,12 @@ export default function ChatPage() {
               onKeyDown={handleKeyDown}
               placeholder="Query Gmail alerts, sync schedules, check GitHub status..."
               className="w-full bg-background border border-border rounded-xl pl-4 pr-12 py-3.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-inner resize-none min-h-[46px] max-h-[160px] overflow-y-auto align-middle"
-              disabled={isTyping}
+              disabled={isTyping || isResetting}
               rows={1}
             />
             <button
               type="submit"
-              disabled={isTyping || !inputValue.trim()}
+              disabled={isTyping || isResetting || !inputValue.trim()}
               className="absolute right-2.5 bottom-2.5 p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 disabled:bg-muted/40 disabled:text-muted-foreground transition-all shadow-sm"
             >
               <Send size={16} />

@@ -63,9 +63,10 @@ class GeminiService:
 
         return self._client
 
-    async def generate_response(self, message: str) -> str:
+    async def generate_response(self, message: str, session_id: Optional[str] = None) -> str:
         """
-        Submits the user's message to Groq and returns the generated text.
+        Submits the user's message to Groq (with context memory history and system prompt)
+        and returns the generated text.
         Designed with future extension points:
         - Memory context hook
         - Tool calling (MCP client integrations)
@@ -73,30 +74,62 @@ class GeminiService:
         """
         client = self.client
         model = settings.GROQ_MODEL or "llama-3.3-70b-versatile"
-        logger.info(f"Actually using Groq model: '{model}'")
+        
+        # Load conversation memory context if session is provided
+        history_messages = []
+        conversation_mem = None
+        if session_id:
+            from app.services.memory import memory_manager
+            conversation_mem = memory_manager.get_session(session_id)
+            history_messages = conversation_mem.get_history()
+
+        # Build messages payload
+        messages_payload = []
+        
+        # 1. Inject configurable system prompt
+        if settings.SYSTEM_PROMPT:
+            messages_payload.append({"role": "system", "content": settings.SYSTEM_PROMPT})
+            
+        # 2. Append history messages
+        messages_payload.extend(history_messages)
+        
+        # 3. Append current user query
+        messages_payload.append({"role": "user", "content": message})
+
+        logger.info(
+            f"Actually using Groq model: '{model}' (Session ID: {session_id or 'default'}, "
+            f"History Context Size: {len(history_messages)} messages)"
+        )
 
         try:
-            logger.info("Sending message to Groq API...")
-            
-            # Future integrations hook points:
-            # 1. Memory context: Retrieve previous chat messages and prefix them.
-            # 2. Integration contexts: Fetch recent Gmail/GitHub/Calendar events and append to system instructions/messages context.
-            # 3. MCP / Tools: Pass tool definitions to chat.completions.create options.
+            logger.info("Sending message thread to Groq API...")
             
             # Use asyncio.to_thread to run the blocking client call in a separate thread.
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=model,
-                messages=[
-                    {"role": "user", "content": message}
-                ]
+                messages=messages_payload,
             )
 
             if not response or not response.choices or not response.choices[0].message.content:
                 raise ValueError("Received an empty or invalid response from Groq API.")
 
+            response_text = response.choices[0].message.content
+
+            # Commit to conversation memory upon success
+            if conversation_mem:
+                conversation_mem.add_message("user", message)
+                conversation_mem.add_message("assistant", response_text)
+                
+                # Dynamic Token Estimations Logging
+                total_tokens = conversation_mem.get_total_tokens()
+                logger.info(
+                    f"Current session memory size: {len(conversation_mem.messages)} messages. "
+                    f"Estimated total tokens: {total_tokens}"
+                )
+
             logger.info("Successfully received response from Groq API.")
-            return response.choices[0].message.content
+            return response_text
 
         except AuthenticationError as e:
             logger.error(f"Groq Authentication failure: {e}")

@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     GROQ_API_KEY: str | None = None
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    MEMORY_MAX_MESSAGES: int = 20
+    SYSTEM_PROMPT: str = (
+        "You are FoundrAI, a professional startup assistant, technical co-founder, "
+        "software architect, product advisor, and business strategy assistant. "
+        "Provide professional, strategic, and technically sound guidance."
+    )
 
     # PostgreSQL Database Settings
     POSTGRES_USER: str = "postgres"
@@ -68,6 +74,8 @@ print(f"Loaded environment file path: {env_path}")
 print(f"Environment file exists: {os.path.exists(env_path)}")
 print(f"Loaded GROQ_API_KEY: {key_preview}")
 print(f"Loaded GROQ_MODEL: {settings.GROQ_MODEL}")
+print(f"Loaded MEMORY_MAX_MESSAGES: {settings.MEMORY_MAX_MESSAGES}")
+print(f"Loaded SYSTEM_PROMPT (Length): {len(settings.SYSTEM_PROMPT) if settings.SYSTEM_PROMPT else 0} chars")
 print("====================================")
 
 logger.info("=== FOUNDRAI STARTUP DIAGNOSTICS ===")
@@ -75,4 +83,6 @@ logger.info(f"Loaded environment file path: {env_path}")
 logger.info(f"Environment file exists: {os.path.exists(env_path)}")
 logger.info(f"Loaded GROQ_API_KEY: {key_preview}")
 logger.info(f"Loaded GROQ_MODEL: {settings.GROQ_MODEL}")
+logger.info(f"Loaded MEMORY_MAX_MESSAGES: {settings.MEMORY_MAX_MESSAGES}")
+logger.info(f"Loaded SYSTEM_PROMPT (Length): {len(settings.SYSTEM_PROMPT) if settings.SYSTEM_PROMPT else 0} chars")
 logger.info("====================================")
